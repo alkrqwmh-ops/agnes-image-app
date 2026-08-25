@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agnes AI · 文生图</title>
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #161b24;
+    --surface2: #1e2532;
+    --border: #2a3347;
+    --accent: #6c5ce7;
+    --accent-glow: rgba(108,92,231,.35);
+    --text: #e2e8f0;
+    --text2: #8892a4;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+  }
+
+  /* ── header ── */
+  header {
+    text-align: center;
+    margin-bottom: 36px;
+  }
+  header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #a78bfa, #6c5ce7, #38bdf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -.5px;
+  }
+  header p { color: var(--text2); margin-top: 6px; font-size: .9rem; }
+
+  /* ── layout ── */
+  .wrapper {
+    width: 100%;
+    max-width: 780px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ── card ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+  .card-title {
+    font-size: .8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--text2);
+    margin-bottom: 16px;
+  }
+
+  /* ── textarea ── */
+  #prompt {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 1rem;
+    padding: 14px 16px;
+    resize: vertical;
+    min-height: 120px;
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+    line-height: 1.6;
+  }
+  #prompt:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  #prompt::placeholder { color: var(--text2); }
+
+  /* ── options row ── */
+  .options {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+  }
+  .opt-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .opt-group label {
+    font-size: .82rem;
+    color: var(--text2);
+    white-space: nowrap;
+  }
+  select, input[type=number] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 4px 8px;
+    font-size: .85rem;
+    outline: none;
+    cursor: pointer;
+  }
+
+  /* ── generate btn ── */
+  .btn-row { display: flex; gap: 12px; margin-top: 18px; }
+  #generate {
+    flex: 1;
+    padding: 14px 24px;
+    background: linear-gradient(135deg, #7c6cf0, #6c5ce7);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .2s, transform .1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  #generate:hover { opacity: .9; }
+  #generate:active { transform: scale(.98); }
+  #generate:disabled { opacity: .45; cursor: not-allowed; }
+
+  .icon { width: 18px; height: 18px; }
+
+  /* ── result ── */
+  #result-area {
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #result-img {
+    max-width: 100%;
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    display: none;
+  }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+    display: none;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-msg {
+    color: #f87171;
+    font-size: .9rem;
+    text-align: center;
+    display: none;
+    padding: 12px;
+    background: rgba(248,113,113,.08);
+    border-radius: 8px;
+    border: 1px solid rgba(248,113,113,.2);
+  }
+
+  /* ── settings toggle ── */
+  .settings-toggle {
+    font-size: .8rem;
+    color: var(--text2);
+    cursor: pointer;
+    text-decoration: underline dotted;
+    margin-top: 10px;
+    text-align: right;
+    display: block;
+  }
+  #settings-panel {
+    display: none;
+    margin-top: 12px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+  .field label { font-size: .82rem; color: var(--text2); }
+  .field input[type=text], .field input[type=password] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 9px 12px;
+    font-size: .9rem;
+    outline: none;
+    width: 100%;
+    transition: border-color .2s;
+  }
+  .field input:focus { border-color: var(--accent); }
+  .save-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 8px 18px;
+    font-size: .85rem;
+    cursor: pointer;
+    transition: background .2s;
+  }
+  .save-btn:hover { background: var(--border); }
+  .toast {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    background: var(--accent);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: .85rem;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity .3s, transform .3s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>✦ Agnes AI 文生图</h1>
+  <p>输入提示词，AI 帮你画出来</p>
+</header>
+
+<div class="wrapper">
+
+  <!-- Prompt -->
+  <div class="card">
+    <div class="card-title">提示词</div>
+    <textarea id="prompt" placeholder="例：一只穿着宇航服的柴犬在火星表面漫步，赛博朋克风格，霓虹灯光，高清细节……"></textarea>
+
+    <div class="options">
+      <div class="opt-group">
+        <label>尺寸</label>
+        <select id="size">
+          <option value="1024x1024">1:1 · 1024</option>
+          <option value="1024x576">16:9 · 1024</option>
+          <option value="576x1024">9:16 · 1024</option>
+          <option value="1280x720">16:9 · 1280</option>
+          <option value="720x1280">9:16 · 1280</option>
+        </select>
+      </div>
+      <div class="opt-group">
+        <label>张数</label>
+        <select id="n">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="4">4</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button id="generate" onclick="generate()">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        </svg>
+        生成图片
+      </button>
+    </div>
+
+    <span class="settings-toggle" onclick="toggleSettings()">⚙ API 配置</span>
+    <div id="settings-panel">
+      <div class="field">
+        <label>Base URL</label>
+        <input type="text" id="cfg-baseurl" placeholder="https://apihub.agnes-ai.com/v1">
+      </div>
+      <div class="field">
+        <label>Model</label>
+        <input type="text" id="cfg-model" placeholder="agnes-image-2.0-flash">
+      </div>
+      <div class="field">
+        <label>API Key</label>
+        <input type="password" id="cfg-key" placeholder="输入你的 API Key">
+      </div>
+      <button class="save-btn" onclick="saveConfig()">保存配置</button>
+    </div>
+  </div>
+
+  <!-- Result -->
+  <div class="card">
+    <div class="card-title">结果</div>
+    <div id="result-area">
+      <div class="spinner" id="spinner"></div>
+      <img id="result-img" alt="generated">
+      <div class="error-msg" id="error-msg"></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ── config ──────────────────────────────────────────────
+  const DEFAULTS = {
+    baseurl: 'https://apihub.agnes-ai.com/v1',
+    model:   'agnes-image-2.0-flash',
+    key:     ''
+  };
+
+  function loadConfig() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('agnes_cfg') || '{}');
+      return { ...DEFAULTS, ...saved };
+    } catch { return { ...DEFAULTS }; }
+  }
+
+  function saveConfig() {
+    const cfg = {
+      baseurl: document.getElementById('cfg-baseurl').value.trim(),
+      model:   document.getElementById('cfg-model').value.trim(),
+      key:     document.getElementById('cfg-key').value.trim()
+    };
+    localStorage.setItem('agnes_cfg', JSON.stringify(cfg));
+    showToast('配置已保存 ✓');
+    toggleSettings();
+  }
+
+  function toggleSettings() {
+    const panel = document.getElementById('settings-panel');
+    const show = panel.style.display === 'block';
+    panel.style.display = show ? 'none' : 'block';
+    if (!show) {
+      const cfg = loadConfig();
+      document.getElementById('cfg-baseurl').value = cfg.baseurl;
+      document.getElementById('cfg-model').value   = cfg.model;
+      document.getElementById('cfg-key').value    = cfg.key;
+    }
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  // ── generate ────────────────────────────────────────────
+  async function generate() {
+    const prompt    = document.getElementById('prompt').value.trim();
+    const size      = document.getElementById('size').value;
+    const n         = parseInt(document.getElementById('n').value);
+    const cfg       = loadConfig();
+    const [w, h]    = size.split('x').map(Number);
+
+    if (!prompt) { showToast('请先输入提示词'); return; }
+    if (!cfg.key)  { showToast('请先配置 API Key'); toggleSettings(); return; }
+
+    // UI state
+    const btn      = document.getElementById('generate');
+    const spinner  = document.getElementById('spinner');
+    const img      = document.getElementById('result-img');
+    const err      = document.getElementById('error-msg');
+    btn.disabled   = true;
+    btn.style.opacity = '.5';
+    spinner.style.display = 'block';
+    img.style.display   = 'none';
+    err.style.display   = 'none';
+
+    try {
+      const resp = await fetch(`${cfg.baseurl.replace(/\/$/, '')}/images/generations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${cfg.key}`
+        },
+        body: JSON.stringify({
+          model: cfg.model,
+          prompt,
+          size: `${w}x${h}`,
+          n
+        })
+      });
+
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        throw new Error(data?.error?.message || `HTTP ${resp.status}`);
+      }
+
+      // Handle both array urls and data fields
+      const results = data.data || data;
+      if (!results || results.length === 0) throw new Error('未返回图片数据');
+
+      if (results.length === 1) {
+        img.src = results[0].url || results[0];
+      } else {
+        // multi: show grid via a simple flex wrap (first one for now)
+        img.src = results[0].url || results[0];
+      }
+      img.style.display = 'block';
+
+    } catch (e) {
+      err.textContent = e.message || '生成失败，请检查配置';
+      err.style.display = 'block';
+    } finally {
+      btn.disabled   = false;
+      btn.style.opacity = '1';
+      spinner.style.display = 'none';
+    }
+  }
+
+  // Ctrl+Enter to submit
+  document.getElementById('prompt').addEventListener('keydown', e => {
+    if (e.ctrlKey && e.key === 'Enter') generate();
+  });
+</script>
+</body>
+</html>
